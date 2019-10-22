@@ -17,7 +17,6 @@ import os
 import os.path
 import sqlite3
 import re
-import openpyxl
 
 class Main_Foram_Dialog(QtWidgets.QWidget):
 	"""
@@ -144,7 +143,7 @@ class Main_Foram_Dialog(QtWidgets.QWidget):
 		msgBox.setIcon(QMessageBox.Warning)
 		msgBox.setText("%s"%text)
 		msgBox.setStandardButtons(QMessageBox.Ok)
-		reply = msgBox.exec()	
+		reply = msgBox.exec()
 	
 	#数据库窗口，从Excel中读取数据，并写去到db_tableWidget
 	def set_db_tab_widget_from_excel(self):
@@ -335,6 +334,53 @@ class Main_Foram_Dialog(QtWidgets.QWidget):
 	
 	#结果写入到输出文件
 	def write_result(self):
+		if self.UI.MCNP_radioButton.isChecked():
+			self.to_MCNP()
+		elif self.UI.RMC_radioButton.isChecked():
+			self.to_RMC()
+	
+	def to_RMC(self):
+		Componet_material=[]
+		Total_tad=0
+		library_mark=self.UI.lib_comboBox.currentText()                      #获取lib_comboBox的内容
+		b=self.UI.selected_listWidget.count()
+		total_text=''
+		for i in range(0, self.UI.selected_listWidget.count()):              #获取selected_listWidget中的所有内容
+			table_name=self.UI.selected_listWidget.item(i).text()
+			ZAID,Nuclide_Name,Ion_Density=self.read_database(table_name,self.material_content[i]) #从数据库读取每个表中的数据	
+			Componet_material.append(table_name)
+			Total_tad=Total_tad+eff_tad
+			comment=['        // ********************************************//','        // ***      %s'%table_name,
+			         '        // ***  volume fraction [%] - {0}'.format(self.material_content[i]),'        // ***  t.a.d. =  {:.5e}'.format(tad),
+			         '        // ***  eff.tad = {:.5e}'.format(eff_tad),'        // ********************************************//\n']
+			text='\n'.join(comment)
+			#获取每种成分的数据
+			for j in range(len(ZAID)):
+				item=['        ', ZAID[j]+library_mark, Ion_Density[j],'//', Nuclide_Name[j]]
+				line=' '.join(item)+'\n' 
+				text=text+line
+			#获取总的数据
+			total_text=total_text+text
+		num_componet=len(Componet_material)
+		total_comment=['//  --------------------------------------------------------------------',
+		               '//  Total has  {}  Componets material  '.format(num_componet),
+		               '//  Total eff t.a.d   =   {:.8e}'.format(Total_tad),
+		               '//  --------------------------------------------------------------------',
+		               '        density = {:.8e}'.format(Total_tad),'        @zaid.xxx        fraction\n']
+		total_comment='\n'.join(total_comment)
+		output=total_comment+total_text
+		path=os.getcwd()+'\output'
+		folder = os.path.exists(path)
+		if not folder:
+			os.makedirs(path) 
+		else:
+			pass
+		save_dir=path+'\output.txt'
+		with open(save_dir, 'w') as fou:
+			fou.write(output)
+			fou.close()	
+	
+	def to_MCNP(self):
 		Componet_material=[]
 		Total_tad=0
 		library_mark=self.UI.lib_comboBox.currentText()                      #获取lib_comboBox的内容
@@ -413,10 +459,10 @@ class Main_Foram_Dialog(QtWidgets.QWidget):
 			for row in cursor:
 				ZAID.append(row[0])
 				Nuclide_Name.append(row[1])
-				density='{:.8e}'.format(row[2]*colume_frac/100)  #乘以体积份额计算考虑占空比后的核子密度
+				density='{:.8e}'.format(row[2]*colume_frac/100)       #乘以体积份额计算考虑占空比后的核子密度
 				Ion_Density.append(density)
 				tad=row[2]+tad                                        #计算总核子密度
-				eff_tad=row[2]*colume_frac/100+eff_tad           #计算材料总的有效核子密度
+				eff_tad=row[2]*colume_frac/100+eff_tad                #计算材料总的有效核子密度
 			data=[ZAID,Nuclide_Name,Ion_Density]                          #每个表中的元素		
 			conn.close()
 			return data
@@ -424,6 +470,7 @@ class Main_Foram_Dialog(QtWidgets.QWidget):
 			self.warning_dlg('表不存在')
 		
 	def fresh(self):
+		self.material_content=[]
 		self.UI.selected_listWidget.clear()
 		self.UI.content_tableWidget.setColumnCount(0)                 #清空content_tableWidget
 		self.UI.content_tableWidget.setRowCount(0)         

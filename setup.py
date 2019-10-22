@@ -4,7 +4,7 @@ from cx_Freeze import setup, Executable
 options = {
 "includes": ["os","re","sqlite3","PyQt5"], 
 
-"include_files": ["Ui_database.py","Ui_input.py","data.db"]
+"include_files": ["data.db"]
 }
 
 target = Executable(
